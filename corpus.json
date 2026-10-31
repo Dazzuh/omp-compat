@@ -1,0 +1,83 @@
+[
+  {
+    "id": "good",
+    "trust": "trusted",
+    "source": {
+      "path": "fixtures/good"
+    },
+    "expect": "pass"
+  },
+  {
+    "id": "missing-module",
+    "trust": "trusted",
+    "source": {
+      "path": "fixtures/missing-module"
+    },
+    "expect": "fail",
+    "expectFindings": [
+      {
+        "check": "host-imports",
+        "code": "module-not-found",
+        "specifier": "@oh-my-pi/pi-tui/no-such-module"
+      }
+    ]
+  },
+  {
+    "id": "missing-export",
+    "trust": "trusted",
+    "source": {
+      "path": "fixtures/missing-export"
+    },
+    "expect": "fail",
+    "expectFindings": [
+      {
+        "check": "host-imports",
+        "code": "export-not-found"
+      }
+    ]
+  },
+  {
+    "id": "missing-entry",
+    "trust": "trusted",
+    "source": {
+      "path": "fixtures/missing-entry"
+    },
+    "expect": "fail",
+    "expectFindings": [
+      {
+        "check": "manifest",
+        "code": "entry-not-found"
+      }
+    ]
+  },
+  {
+    "id": "no-manifest",
+    "trust": "trusted",
+    "source": {
+      "path": "fixtures/no-manifest"
+    },
+    "expect": "fail",
+    "expectFindings": [
+      {
+        "check": "manifest",
+        "code": "manifest-missing"
+      }
+    ]
+  },
+  {
+    "id": "tern-omp-bridge",
+    "trust": "untrusted",
+    "source": {
+      "git": "https://github.com/theblazehen/tern-omp-bridge",
+      "rev": "607a0c7815091954df08705b3b2386cd9238a89d"
+    },
+    "expect": "fail",
+    "expectFindings": [
+      {
+        "check": "host-imports",
+        "code": "module-not-found",
+        "specifier": "@oh-my-pi/pi-tui/native/styles"
+      }
+    ]
+  }
+]

@@ -3,9 +3,10 @@ import { parseArgs } from "node:util";
 import { basename, resolve } from "node:path";
 import { cacheRoot } from "./cache.ts";
 import { CHECK_ORDER } from "./checks/index.ts";
-import { UsageError } from "./errors.ts";
+import { InfraError, UsageError } from "./errors.ts";
 import { renderResults } from "./format.ts";
 import { readPlugin } from "./plugin.ts";
+import { runMatrix } from "./matrix.ts";
 import { runCell } from "./runner.ts";
 import { resolveVersion } from "./versions.ts";
 import type { CellResult, CheckId, OmpVersion } from "./types.ts";
@@ -107,7 +108,20 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (!values.corpus || !values.versions) usage("matrix requires --corpus and --versions");
-    usage("matrix is not wired up yet (arrives with the corpus and expectations)");
+    if (values.trust !== undefined && values.trust !== "trusted" && values.trust !== "untrusted") {
+      usage('--trust must be "trusted" or "untrusted"');
+    }
+    const { markdown, exitCode } = await runMatrix({
+      corpus: values.corpus,
+      versions: values.versions,
+      includeLatest: values["include-latest"] === true,
+      checks: parseChecks(values.checks),
+      trust: values.trust,
+      untrustedRuntime: values["untrusted-runtime"] === true,
+      report: values.report,
+    });
+    console.log(markdown);
+    return exitCode;
   }
   return usage(`unknown command: ${command}`);
 }
@@ -118,6 +132,10 @@ try {
   if (err instanceof UsageError || (err instanceof TypeError && "code" in err)) {
     console.error(`error: ${(err as Error).message}\n\n${USAGE}`);
     process.exit(2);
+  }
+  if (err instanceof InfraError) {
+    console.error(`error: ${err.message}`);
+    process.exit(3);
   }
   throw err;
 }
