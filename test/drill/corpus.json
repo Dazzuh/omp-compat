@@ -1,0 +1,14 @@
+[
+  {
+    "id": "drill-removed-api",
+    "trust": "trusted",
+    "source": {
+      "path": "test/drill/plugin"
+    },
+    "baseline": "18.1.5",
+    "versions": [
+      "18.1.5",
+      "18.1.6"
+    ]
+  }
+]

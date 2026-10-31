@@ -1,0 +1,11 @@
+{
+  "name": "omp-compat-drill-removed-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "omp": {
+    "extensions": [
+      "./extension/index.ts"
+    ]
+  }
+}
