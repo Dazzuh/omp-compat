@@ -7,6 +7,7 @@ import { UsageError } from "./errors.ts";
 import { renderResults } from "./format.ts";
 import { readPlugin } from "./plugin.ts";
 import { runCell } from "./runner.ts";
+import { resolveVersion } from "./versions.ts";
 import type { CellResult, CheckId, OmpVersion } from "./types.ts";
 
 const USAGE = `omp-compat: compatibility validator for OMP plugins
@@ -58,9 +59,11 @@ async function main(argv: string[]): Promise<number> {
     if (positionals.length !== 1) usage("check requires exactly one <plugin-dir>");
     if (!values.omp) usage("check requires --omp <ver|latest>[,<ver>...]");
     const checks = parseChecks(values.checks);
-    const versions = values.omp.split(",").map(v => v.trim());
-    for (const v of versions) {
-      if (!Bun.semver.satisfies(v, v)) usage(`unsupported --omp value: ${v} (exact versions only for now)`);
+    const versions: OmpVersion[] = [];
+    for (const raw of values.omp.split(",").map(v => v.trim())) {
+      if (raw === "latest") versions.push(await resolveVersion(raw));
+      else if (Bun.semver.satisfies(raw, raw)) versions.push(raw as OmpVersion);
+      else usage(`--omp expects an exact version or "latest", got: ${raw}`);
     }
     const root = resolve(positionals[0]!);
     const gitHead = Bun.spawnSync(["git", "-C", root, "rev-parse", "HEAD"]);
@@ -74,7 +77,7 @@ async function main(argv: string[]): Promise<number> {
     const results: CellResult[] = [];
     for (const v of versions) {
       results.push(
-        await runCell(plugin, v as OmpVersion, {
+        await runCell(plugin, v, {
           checks,
           allowRuntime: () => values["allow-runtime"] === true,
           cacheDir: cacheRoot(values.cache),
