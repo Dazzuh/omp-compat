@@ -1,0 +1,4 @@
+.kata.local.toml
+node_modules/
+.omp-compat-cache/
+report.json
