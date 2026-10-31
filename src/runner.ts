@@ -68,11 +68,14 @@ async function execute(
   }
 }
 
-export function verdictOf(outcomes: CheckOutcome[]): CellVerdict {
+/** Checks the caller did not select are not part of the verdict; skips for other reasons are. */
+export function verdictOf(all: CheckOutcome[]): CellVerdict {
+  const outcomes = all.filter(o => o.skipReason !== "not-selected");
   const has = (s: CheckOutcome["status"]) => outcomes.some(o => o.status === s);
   if (has("fail")) return "incompatible";
   if (has("infra-error")) return "infra-error";
   if (has("upstream-pending")) return "upstream-pending";
+  if (outcomes.length === 0) return "skipped";
   const passes = outcomes.filter(o => o.status === "pass").length;
   if (passes === outcomes.length) return "verified";
   if (passes > 0) return "partial";

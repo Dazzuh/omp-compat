@@ -75,6 +75,8 @@ describe("verdicts", () => {
   });
   test("pass + skipped -> partial", async () =>
     expect((await cell({}, { runtime: false })).verdict).toBe("partial"));
+  test("unselected checks do not downgrade a verdict", async () =>
+    expect((await cell({}, { checks: ["manifest", "omp-load"] })).verdict).toBe("verified"));
   test("nothing ran -> skipped", async () => expect((await cell({}, { checks: [] })).verdict).toBe("skipped"));
   test("verdictOf on only skipped outcomes", () => {
     const o: CheckOutcome = { check: "manifest", status: "skipped", findings: [], durationMs: 0 };

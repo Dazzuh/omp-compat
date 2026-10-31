@@ -1,5 +1,12 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
+import { basename, resolve } from "node:path";
+import { cacheRoot } from "./cache.ts";
+import { CHECK_ORDER } from "./checks/index.ts";
+import { renderResults } from "./format.ts";
+import { readPlugin } from "./plugin.ts";
+import { runCell } from "./runner.ts";
+import type { CellResult, CheckId, OmpVersion } from "./types.ts";
 
 const USAGE = `omp-compat: compatibility validator for OMP plugins
 
@@ -12,6 +19,14 @@ Exit codes: 0 ok, 1 incompatible/regression, 2 usage error, 3 infra error, 4 exp
 `;
 
 class UsageError extends Error {}
+
+function parseChecks(raw: string | undefined): CheckId[] {
+  if (raw === undefined) return [...CHECK_ORDER];
+  const ids = raw.split(",").map(c => c.trim());
+  const bad = ids.filter(c => !CHECK_ORDER.includes(c as CheckId));
+  if (bad.length) throw new UsageError(`unknown check id: ${bad.join(", ")}`);
+  return ids as CheckId[];
+}
 
 function usage(message: string): never {
   throw new UsageError(message);
@@ -42,7 +57,33 @@ async function main(argv: string[]): Promise<number> {
     }
     if (positionals.length !== 1) usage("check requires exactly one <plugin-dir>");
     if (!values.omp) usage("check requires --omp <ver|latest>[,<ver>...]");
-    usage("check is not wired up yet (arrives with the plugin reader and checks)");
+    const checks = parseChecks(values.checks);
+    const versions = values.omp.split(",").map(v => v.trim());
+    for (const v of versions) {
+      if (!Bun.semver.satisfies(v, v)) usage(`unsupported --omp value: ${v} (exact versions only for now)`);
+    }
+    const root = resolve(positionals[0]!);
+    const gitHead = Bun.spawnSync(["git", "-C", root, "rev-parse", "HEAD"]);
+    const rev = gitHead.exitCode === 0 ? gitHead.stdout.toString().trim() : "unversioned";
+    const { plugin } = readPlugin(basename(root), root, "untrusted", rev);
+    if (values["allow-runtime"] && checks.includes("omp-load")) {
+      console.error(
+        "warning: omp-load installs and imports this plugin with your user's privileges; the isolated HOME is not a sandbox.",
+      );
+    }
+    const results: CellResult[] = [];
+    for (const v of versions) {
+      results.push(
+        await runCell(plugin, v as OmpVersion, {
+          checks,
+          allowRuntime: () => values["allow-runtime"] === true,
+          cacheDir: cacheRoot(values.cache),
+        }),
+      );
+    }
+    console.log(values.json ? JSON.stringify(results, null, 2) : renderResults(results));
+    if (results.some(r => r.verdict === "incompatible")) return 1;
+    return results.some(r => r.verdict === "infra-error") ? 3 : 0;
   }
   if (command === "matrix") {
     const { values } = parseArgs({
