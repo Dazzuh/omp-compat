@@ -41,7 +41,7 @@ jobs:
           path: report.json
 
   # Untrusted plugin code runs here and only here: no token permissions, no cache
-  # (so it cannot poison what the trusted job reads), no secrets.
+  # (so it cannot poison what the trusted job reads), and no secret access.
   runtime-untrusted:
     strategy:
       fail-fast: false
