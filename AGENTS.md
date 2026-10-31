@@ -85,7 +85,7 @@ Set `needs-human`, swap `ready-for-agent` for `ready-for-human`, notify Dazzuh, 
 - Post one comment in the Evidence comment format.
 - Close with `reason: "done"`, a message of 40+ chars naming scope and verification, and evidence entries `commit:<sha>` plus `test:<cmd>` for each AC command (and `pr:<url>` where a PR or run URL is the evidence).
 - If any AC isn't PASS, don't close. Add `needs-review` with a comment naming what remains.
-- Never close phase issues or E0.
+- Never close E0. Phase issues close only under section 10.
 
 Evidence comment format:
 
@@ -98,7 +98,12 @@ Commit: <sha>
 
 ## 10. Phase checkpoint
 
-When the last work issue in a phase closes: set the phase issue to `needs-human` with label `ready-for-human`, notify Dazzuh with "Phase N ready for review", post a comment listing every `Decision` comment made in the phase, and end the session.
+Phase checkpoints are informational, not approval gates. When the last work issue in a phase closes and every child passed its ACs:
+
+- Post a comment on the phase issue listing every `Decision` comment made in the phase and each child's evidence.
+- Close the phase issue `done` with `commit:<sha>` evidence plus the child issue refs, then continue with the next ready issue in the same session. Don't restart OMP.
+- If any child isn't closed on PASS evidence, or the phase has an open `stuck`, `needs-human` or `needs-review` child, don't close the phase; escalate per section 7.
+- Human escalation stays for scope, architecture, security and acceptance-criteria problems (section 7). Discovered issues stay tracked separately (section 5). Never expand scope to finish a phase.
 
 ## 11. Not allowed
 
