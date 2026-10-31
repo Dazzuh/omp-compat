@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 import { InfraError } from "../errors.ts";
 import { ensureOmpBinary } from "../provision/binary.ts";
 import type { Check, Finding } from "../types.ts";
@@ -48,7 +48,7 @@ function killTree(proc: { pid: number; kill(): void }) {
 /** Strips the isolated-home install prefix so findings name files relative to the plugin. */
 function relativeToPlugin(p: string): string {
   const m = /node_modules[\\/][^\\/]+[\\/](.*)$/.exec(p.replace(/\?mtime=\d+$/, ""));
-  return (m?.[1] ?? p).split(sep).join("/");
+  return (m?.[1] ?? p).replaceAll("\\", "/"); // omp reports the host path style
 }
 
 /** Maps `omp plugin install` stderr to findings (design: load-failed, entry-not-found, install-failed). */
