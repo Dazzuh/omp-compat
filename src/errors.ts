@@ -13,3 +13,11 @@ export class InfraError extends Error {
     this.name = "InfraError";
   }
 }
+
+/** Bad invocation or input; the CLI exits 2. */
+export class UsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageError";
+  }
+}

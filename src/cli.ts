@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { basename, resolve } from "node:path";
 import { cacheRoot } from "./cache.ts";
 import { CHECK_ORDER } from "./checks/index.ts";
+import { UsageError } from "./errors.ts";
 import { renderResults } from "./format.ts";
 import { readPlugin } from "./plugin.ts";
 import { runCell } from "./runner.ts";
@@ -18,7 +19,6 @@ Usage:
 Exit codes: 0 ok, 1 incompatible/regression, 2 usage error, 3 infra error, 4 expectation mismatch (matrix).
 `;
 
-class UsageError extends Error {}
 
 function parseChecks(raw: string | undefined): CheckId[] {
   if (raw === undefined) return [...CHECK_ORDER];
