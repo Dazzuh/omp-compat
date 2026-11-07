@@ -5,8 +5,7 @@ Direct imperatives. Follow them in order of appearance.
 ## 1. Source of truth
 
 - Kata project `omp-compat` holds all task status and dependencies.
-- Use the `kata.*` MCP tools first. At session start load the groups `kata.load_issue_discovery`, `kata.load_issue_mutation`, `kata.load_issue_lifecycle` and `kata.load_coordination`.
-- Use the CLI only for verbs with no MCP tool (`notify`, `projects`). Always pass `--as omp-agent`.
+- Use the `kata` CLI (`kata <cmd> --agent`); there is no Kata MCP server (its lazy tool loads break the prompt cache, can1357/oh-my-pi#18396). Agents write as `omp-agent` through `KATA_AUTHOR` in `~/.omp/agent/.env`. Reach the sandbox project with `--project omp-compat-sandbox`.
 - Never write task state anywhere else.
 
 ## 2. Session start
