@@ -84,6 +84,9 @@ export async function probeExtension(opts: {
   const home = mkdtempSync(join(tmpdir(), "omp-compat-ext-"));
   const env = isolatedEnv(home);
   for (const key of Object.keys(env)) if (/_(API_KEY|TOKEN)$/.test(key)) delete env[key]; // no real credentials reach extension code
+  // Kata (hq-run calls it) must only ever reach a daemon of its own under the probe home: stopDaemons stops it.
+  for (const key of Object.keys(env)) if (key.startsWith("KATA_")) delete env[key];
+  env.KATA_HOME = join(home, ".kata");
   env.ANTHROPIC_API_KEY = PLACEHOLDER_KEY;
   try {
     const request = `${JSON.stringify({ id: PROBE_ID, type: "get_available_commands" })}\n`;
