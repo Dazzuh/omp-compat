@@ -52,3 +52,20 @@ export async function ensureOmpBinary(v: OmpVersion, cacheDir: string): Promise<
   writeFileSync(join(dir, ".complete"), JSON.stringify({ version: v, asset, sha256: expected }));
   return file;
 }
+
+/** Parses `omp --version` output: `omp/<version>`, e.g. `omp/18.20.0+dz.1`. */
+export function parseBinaryVersion(stdout: string): OmpVersion | undefined {
+  const version = /^omp\/(\S+)$/m.exec(stdout.trim())?.[1];
+  return version && Bun.semver.satisfies(version, version) ? (version as OmpVersion) : undefined;
+}
+
+/** The version a local omp binary reports; its build metadata is kept (the cell's version). */
+export async function readBinaryVersion(file: string): Promise<OmpVersion> {
+  const proc = Bun.spawn([file, "--version"], { stdout: "pipe", stderr: "pipe", windowsHide: true, timeout: 60_000 });
+  const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+  const version = code === 0 ? parseBinaryVersion(out) : undefined;
+  if (!version) {
+    throw new InfraError(`cannot read an omp version from ${file}: exit ${code}, output ${JSON.stringify(out.trim().slice(0, 200))}`);
+  }
+  return version;
+}

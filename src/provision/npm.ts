@@ -6,6 +6,12 @@ import { packument } from "../versions.ts";
 import type { OmpVersion } from "../types.ts";
 
 const SCOPE = "@oh-my-pi";
+
+/** Host packages publish without build metadata: 18.20.0+dz.1 resolves npm 18.20.0. */
+export function npmVersion(v: OmpVersion): OmpVersion {
+  return v.replace(/\+.*$/, "") as OmpVersion;
+}
+
 const HOST_PACKAGES = ["pi-agent-core", "pi-ai", "pi-catalog", "pi-coding-agent", "pi-natives", "pi-tui", "pi-utils"];
 
 async function bunAdd(dir: string, spec: string): Promise<{ ok: boolean; stderr: string }> {
@@ -13,6 +19,7 @@ async function bunAdd(dir: string, spec: string): Promise<{ ok: boolean; stderr:
     cwd: dir,
     env: { ...process.env, NPM_CONFIG_REGISTRY: npmRegistry() },
     stdout: "ignore",
+    windowsHide: true,
     stderr: "pipe",
   });
   const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);

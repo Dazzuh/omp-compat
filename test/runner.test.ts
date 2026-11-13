@@ -19,6 +19,7 @@ const plugin: PluginUnderTest = {
   name: "p",
   version: "0.0.0",
   manifestKey: "omp",
+  kind: "package",
   extensionEntries: [],
 };
 const err = (check: CheckId): Finding => ({ check, code: "load-failed", severity: "error", message: "boom" });

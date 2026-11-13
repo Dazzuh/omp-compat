@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
-import { basename, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { cacheRoot } from "./cache.ts";
 import { CHECK_ORDER } from "./checks/index.ts";
 import { InfraError, UsageError } from "./errors.ts";
 import { renderResults } from "./format.ts";
-import { readPlugin } from "./plugin.ts";
+import { readBinaryVersion } from "./provision/binary.ts";
+import { readTarget } from "./plugin.ts";
 import { runMatrix } from "./matrix.ts";
 import { runCell } from "./runner.ts";
 import { resolveVersion } from "./versions.ts";
@@ -14,9 +16,13 @@ import type { CellResult, CheckId, OmpVersion } from "./types.ts";
 const USAGE = `omp-compat: compatibility validator for OMP plugins
 
 Usage:
-  omp-compat check <plugin-dir> --omp <ver|latest>[,<ver>...] [--checks <ids>] [--allow-runtime] [--json] [--cache <dir>]
+  omp-compat check <target> (--omp <ver|latest>[,<ver>...] | --omp-binary <path>) [--checks <ids>]
+                   [--expect-commands <name>[,<name>...]] [--allow-runtime] [--json] [--cache <dir>]
   omp-compat matrix --corpus <corpus.json> --versions <omp-versions.json> [--include-latest] [--checks <ids>]
                     [--trust trusted|untrusted] [--untrusted-runtime] [--report <path>]
+
+<target> is a plugin directory (package.json), or an extension file (.js/.ts), or a directory without package.json
+holding index.ts/index.js. --omp-binary checks with a local omp binary; its version is what \`<path> --version\` prints.
 
 Exit codes: 0 ok, 1 incompatible/regression, 2 usage error, 3 infra error, 4 expectation mismatch (matrix).
 `;
@@ -46,6 +52,8 @@ async function main(argv: string[]): Promise<number> {
       allowPositionals: true,
       options: {
         omp: { type: "string" },
+        "omp-binary": { type: "string" },
+        "expect-commands": { type: "string" },
         checks: { type: "string" },
         "allow-runtime": { type: "boolean" },
         json: { type: "boolean" },
@@ -57,31 +65,47 @@ async function main(argv: string[]): Promise<number> {
       console.log(USAGE);
       return 0;
     }
-    if (positionals.length !== 1) usage("check requires exactly one <plugin-dir>");
-    if (!values.omp) usage("check requires --omp <ver|latest>[,<ver>...]");
+    if (positionals.length !== 1) usage("check requires exactly one <target>");
+    if (values.omp && values["omp-binary"]) usage("--omp and --omp-binary are mutually exclusive");
+    if (!values.omp && !values["omp-binary"]) usage("check requires --omp <ver|latest>[,<ver>...] or --omp-binary <path>");
     const checks = parseChecks(values.checks);
-    const versions: OmpVersion[] = [];
-    for (const raw of values.omp.split(",").map(v => v.trim())) {
-      if (raw === "latest") versions.push(await resolveVersion(raw));
-      else if (Bun.semver.satisfies(raw, raw)) versions.push(raw as OmpVersion);
-      else usage(`--omp expects an exact version or "latest", got: ${raw}`);
-    }
-    const root = resolve(positionals[0]!);
-    const gitHead = Bun.spawnSync(["git", "-C", root, "rev-parse", "HEAD"]);
+    const expectCommands =
+      values["expect-commands"] === undefined
+        ? undefined
+        : values["expect-commands"].split(",").map(c => c.trim()).filter(Boolean);
+    const target = readTarget(positionals[0]!, "untrusted");
+    if (expectCommands && target.kind !== "extension") usage("--expect-commands applies to extension targets only");
+    const gitHead = Bun.spawnSync(["git", "-C", target.root, "rev-parse", "HEAD"], { windowsHide: true });
     const rev = gitHead.exitCode === 0 ? gitHead.stdout.toString().trim() : "unversioned";
-    const { plugin } = readPlugin(basename(root), root, "untrusted", rev);
+    const plugin = { ...target, rev };
+
+    const cells: { omp: OmpVersion; ompBinary?: string }[] = [];
+    if (values["omp-binary"]) {
+      const file = resolve(values["omp-binary"]);
+      if (!existsSync(file)) usage(`--omp-binary not found: ${values["omp-binary"]}`);
+      cells.push({ omp: await readBinaryVersion(file), ompBinary: file });
+    } else {
+      for (const raw of values.omp!.split(",").map(v => v.trim())) {
+        if (raw === "latest") cells.push({ omp: await resolveVersion(raw) });
+        else if (Bun.semver.satisfies(raw, raw)) cells.push({ omp: raw as OmpVersion });
+        else usage(`--omp expects an exact version or "latest", got: ${raw}`);
+      }
+    }
     if (values["allow-runtime"] && checks.includes("omp-load")) {
+      const how = target.kind === "extension" ? "loads" : "installs and imports";
       console.error(
-        "warning: omp-load installs and imports this plugin with your user's privileges; the isolated HOME is not a sandbox.",
+        `warning: omp-load ${how} this plugin with your user's privileges; the isolated HOME is not a sandbox.`,
       );
     }
     const results: CellResult[] = [];
-    for (const v of versions) {
+    for (const cell of cells) {
       results.push(
-        await runCell(plugin, v, {
+        await runCell(plugin, cell.omp, {
           checks,
           allowRuntime: () => values["allow-runtime"] === true,
           cacheDir: cacheRoot(values.cache),
+          ompBinary: cell.ompBinary,
+          expectCommands,
         }),
       );
     }

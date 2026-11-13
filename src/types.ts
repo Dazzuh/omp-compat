@@ -1,12 +1,14 @@
-export type OmpVersion = string & { readonly __brand: "OmpVersion" }; // exact semver, e.g. "18.14.2"
+export type OmpVersion = string & { readonly __brand: "OmpVersion" }; // exact semver, e.g. "18.14.2" or "18.20.0+dz.1"
 export type CheckId = "manifest" | "host-imports" | "omp-load";
 export type FindingCode =
   | "manifest-missing" // package.json lacks both `omp` and `pi`
+  | "extension-target" // target is an extension file with no package.json: entry checked directly (warning)
   | "entry-not-found" // declared extension entry missing on disk
   | "module-not-found" // host specifier does not resolve in this OMP version
   | "export-not-found" // imported binding not exported by the resolved host module
   | "host-import-unverified" // other compiler diagnostic on a probe line (warning)
   | "load-failed" // real omp reported "Failed to load extension"
+  | "expected-command-missing" // --expect-commands name not registered by the loaded extension
   | "install-failed"; // real omp install failed for another reason
 export interface Finding {
   check: CheckId;
@@ -26,6 +28,7 @@ export interface PluginUnderTest {
   trust: Trust;
   name: string;
   version: string;
+  kind: "package" | "extension"; // extension: a bare extension file or directory, no package.json
   manifestKey: "omp" | "pi" | null;
   extensionEntries: string[]; // absolute, resolved against root
 }
@@ -33,6 +36,8 @@ export interface CheckContext {
   plugin: PluginUnderTest;
   omp: OmpVersion;
   cacheDir: string;
+  ompBinary?: string; // absolute path of a local omp binary; replaces the downloaded release
+  expectCommands?: readonly string[]; // extension targets only: commands the entry must register
 }
 export type Check = (ctx: CheckContext) => Promise<Finding[]>;
 export interface CheckDef {

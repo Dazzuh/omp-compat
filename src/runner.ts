@@ -3,6 +3,7 @@ import { UpstreamPendingError } from "./errors.ts";
 import type {
   CellResult,
   CellVerdict,
+  CheckContext,
   CheckDef,
   CheckId,
   CheckOutcome,
@@ -14,6 +15,8 @@ export interface RunOptions {
   checks: readonly CheckId[];
   allowRuntime: (plugin: PluginUnderTest) => boolean;
   cacheDir: string;
+  ompBinary?: string; // --omp-binary: the cell runs this file instead of a downloaded release
+  expectCommands?: string[]; // extension targets: commands the entry must register
   registry?: Record<CheckId, CheckDef>;
 }
 
@@ -38,7 +41,7 @@ export async function runCell(
     else if (manifestFailed) outcomes.push(skip("manifest-failed"));
     else if (def.executesPluginCode && !opts.allowRuntime(plugin)) outcomes.push(skip("runtime-not-allowed"));
     else {
-      const outcome = await execute(id, def, plugin, omp, opts.cacheDir);
+      const outcome = await execute(id, def, { plugin, omp, cacheDir: opts.cacheDir, ompBinary: opts.ompBinary, expectCommands: opts.expectCommands });
       if (id === "manifest" && outcome.status === "fail") manifestFailed = true;
       outcomes.push(outcome);
     }
@@ -49,14 +52,12 @@ export async function runCell(
 async function execute(
   id: CheckId,
   def: CheckDef,
-  plugin: PluginUnderTest,
-  omp: OmpVersion,
-  cacheDir: string,
+  ctx: CheckContext,
 ): Promise<CheckOutcome> {
   const start = performance.now();
   const durationMs = () => Math.round(performance.now() - start);
   try {
-    const findings = await def.run({ plugin, omp, cacheDir });
+    const findings = await def.run(ctx);
     const failed = findings.some(f => f.severity === "error");
     return { check: id, status: failed ? "fail" : "pass", findings, durationMs: durationMs() };
   } catch (err) {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
-import { ensureNpmHost } from "../provision/npm.ts";
+import { ensureNpmHost, npmVersion } from "../provision/npm.ts";
 import type { Check, Finding } from "../types.ts";
 
 // Host specifier matching and remaps mirror legacy-pi-compat.ts:801-857@v18.14.2.
@@ -138,7 +138,7 @@ const EXPORT_NOT_FOUND = new Set([2305, 2614, 2724, 1192, 2613]);
 export const hostImportsCheck: Check = async ({ plugin, omp, cacheDir }) => {
   const imports = collectHostImports(plugin.root, plugin.extensionEntries);
   if (imports.length === 0) return [];
-  const host = await ensureNpmHost(omp, cacheDir);
+  const host = await ensureNpmHost(npmVersion(omp), cacheDir);
   const { text, origins } = buildProbe(imports);
   const probeDir = join(host, "probes");
   mkdirSync(probeDir, { recursive: true });

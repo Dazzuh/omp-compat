@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { InfraError } from "./errors.ts";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { InfraError, UsageError } from "./errors.ts";
 import type { Finding, PluginUnderTest, Trust } from "./types.ts";
 
 /** Reads package.json; `omp` wins over the legacy `pi` key. Missing package.json is an InfraError. */
@@ -51,8 +51,47 @@ export function readPlugin(
     trust,
     name: typeof pkg.name === "string" ? pkg.name : id,
     version: typeof pkg.version === "string" ? pkg.version : "0.0.0",
+    kind: "package",
     manifestKey,
     extensionEntries: declared.map(e => resolve(root, e)),
   };
   return { plugin, findings };
+}
+
+const EXTENSION_FILE = /\.[cm]?[jt]s$/;
+
+/**
+ * Resolves a check target: a package directory (has package.json), an extension file (.js/.ts), or a directory
+ * without package.json holding index.ts/index.js. The rev is filled in by the caller.
+ */
+export function readTarget(target: string, trust: Trust): PluginUnderTest {
+  const abs = resolve(target);
+  if (!existsSync(abs)) throw new InfraError(`check target not found: ${target}`);
+  if (statSync(abs).isFile()) {
+    if (!EXTENSION_FILE.test(abs)) throw new UsageError(`extension file must be .js or .ts: ${target}`);
+    return extensionTarget(abs, dirname(abs), trust);
+  }
+  if (existsSync(join(abs, "package.json"))) return readPlugin(basename(abs), abs, trust, "").plugin;
+  const index = ["index.ts", "index.js"].map(f => join(abs, f)).find(f => existsSync(f));
+  if (!index) throw new UsageError(`${target} has neither package.json nor index.ts/index.js`);
+  return extensionTarget(index, abs, trust);
+}
+
+function extensionTarget(entry: string, root: string, trust: Trust): PluginUnderTest {
+  // Label only: a bare index.ts is named after its directory, or the directory above a generic "extension/".
+  const stem = basename(entry).replace(EXTENSION_FILE, "");
+  const dir = basename(dirname(entry));
+  const generic = ["extension", "extensions", "src", "dist"].includes(dir);
+  const id = stem !== "index" ? stem : generic ? basename(dirname(dirname(entry))) : dir;
+  return {
+    id,
+    root: resolve(root),
+    rev: "",
+    trust,
+    name: id,
+    version: "0.0.0",
+    kind: "extension",
+    manifestKey: null,
+    extensionEntries: [resolve(entry)],
+  };
 }
