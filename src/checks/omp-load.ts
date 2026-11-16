@@ -1,7 +1,7 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { InfraError } from "../errors.ts";
 import { isolatedEnv, killTree } from "../isolation.ts";
 import { ensureOmpBinary } from "../provision/binary.ts";
@@ -98,7 +98,10 @@ export const ompLoadCheck: Check = async ({ plugin, omp, cacheDir, ompBinary, ex
   try {
     const name = plugin.id.replace(/[^A-Za-z0-9_-]/g, "_");
     const repo = join(srv, "work");
-    cpSync(plugin.root, repo, { recursive: true, filter: s => !/[\\/](\.git|node_modules)([\\/]|$)/.test(s) });
+    // The real path: npm plugins under node_modules are often junctions, and cpSync from a junction makes the copy a
+    // link back to the author's repo, so git would init, add and commit there. Filter relative to the same root.
+    const src = realpathSync(plugin.root);
+    cpSync(src, repo, { recursive: true, filter: s => !/(^|[\\/])(\.git|node_modules)([\\/]|$)/.test(relative(src, s)) });
     mkdirSync(join(srv, "srv", "fx"), { recursive: true });
     git(["init", "-q", "-b", "main"], repo);
     writeFileSync(join(repo, ".omp-compat-keep"), ""); // never commit an empty tree

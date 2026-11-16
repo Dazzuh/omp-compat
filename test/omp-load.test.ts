@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ompLoadCheck, parseInstallFailure } from "../src/checks/omp-load.ts";
@@ -52,6 +53,35 @@ describe("real omp 18.14.2 in an isolated home", () => {
     expect(f).toHaveLength(1);
     expect(f[0]).toMatchObject({ code: "load-failed", file: "extension/index.ts" });
     expect(f[0]!.message).toContain("@oh-my-pi/pi-tui");
+  }, 300_000);
+  test("a plugin installed under node_modules is copied and installed", async () => {
+    // The copy filter skips node_modules folders; the plugin root itself sits under one and must still be copied.
+    const dir = mkdtempSync(join(tmpdir(), "omp-compat-nm-"));
+    try {
+      const root = join(dir, "node_modules", "good");
+      cpSync(fx("good"), root, { recursive: true });
+      const { plugin } = readPlugin("good", root, "trusted", "r");
+      expect(await ompLoadCheck({ plugin, omp: "18.14.2" as OmpVersion, cacheDir })).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 300_000);
+  test("a plugin reached through a junction under node_modules is copied, and its repo is left alone", async () => {
+    // npm-installed plugins can be junctions to a repo; a copy that links back to it would run git inside that repo.
+    const dir = mkdtempSync(join(tmpdir(), "omp-compat-nm-"));
+    try {
+      const repo = join(dir, "plugin-repo");
+      cpSync(fx("good"), repo, { recursive: true });
+      mkdirSync(join(dir, "node_modules"));
+      const root = join(dir, "node_modules", "good");
+      symlinkSync(repo, root, "junction");
+      const { plugin } = readPlugin("good", root, "trusted", "r");
+      expect(await ompLoadCheck({ plugin, omp: "18.14.2" as OmpVersion, cacheDir })).toEqual([]);
+      expect(existsSync(join(repo, ".omp-compat-keep"))).toBe(false);
+      expect(existsSync(join(repo, ".git"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }, 300_000);
 });
 
